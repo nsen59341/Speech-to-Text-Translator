@@ -20,21 +20,16 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.05);
         }
-        /* Custom scrollbar aesthetics */
-        ::-webkit-scrollbar {
-            width: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
     </style>
+    <script>
+        // Shim process.env for browser environments
+        window.process = window.process || { env: {} };
+        // If Netlify/Build tool doesn't inject it, this prevents the app from breaking
+        // and allows the service to handle the missing key gracefully.
+    </script>
     <script type="importmap">
 {
   "imports": {
@@ -50,7 +45,6 @@
 </head>
 <body>
     <div id="root"></div>
-    <!-- Explicitly load the entry point module -->
     <script type="module" src="index.tsx"></script>
 </body>
 </html>
