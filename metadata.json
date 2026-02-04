@@ -1,0 +1,7 @@
+{
+  "name": "LinguistLive AI",
+  "description": "A real-time voice transcription and translation app powered by Gemini Live API. Listen, transcribe, and translate your voice instantly into any language with low-latency responses.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
