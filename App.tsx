@@ -54,9 +54,9 @@ const App: React.FC = () => {
 
   return (
     <Layout>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 flex-1 overflow-hidden">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 flex-1 overflow-hidden min-h-0">
         {/* Controls Panel */}
-        <aside className="md:col-span-1 flex flex-col gap-6 order-2 md:order-1">
+        <aside className="md:col-span-1 flex flex-col gap-6 order-2 md:order-1 h-full md:h-auto">
           <div className="glass-morphism rounded-3xl p-6 flex flex-col gap-6 h-fit shadow-xl">
             <LanguageSelector 
               selected={targetLang} 
@@ -117,7 +117,7 @@ const App: React.FC = () => {
         </aside>
 
         {/* Display Panel */}
-        <main className="md:col-span-3 flex flex-col order-1 md:order-2 h-full">
+        <main className="md:col-span-3 flex flex-col order-1 md:order-2 h-full min-h-0">
           <TranscriptDisplay 
             items={transcripts} 
             currentInput={currentInput}
@@ -126,7 +126,7 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      <footer className="mt-8 text-center text-[10px] text-gray-600 uppercase tracking-[0.2em]">
+      <footer className="mt-8 text-center text-[10px] text-gray-600 uppercase tracking-[0.2em] flex-shrink-0">
         Powered by Gemini 2.5 Native Audio &bull; Low Latency AI
       </footer>
     </Layout>
