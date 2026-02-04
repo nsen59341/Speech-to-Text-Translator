@@ -23,13 +23,23 @@ export class LiveService {
 
   async connect(targetLanguage: string, callbacks: LiveCallbacks) {
     try {
-      // Initialize fresh AI instance for the connection
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      // Robustly check for the API key in different environments
+      const apiKey = (typeof process !== 'undefined' && process.env?.API_KEY) || (window as any).process?.env?.API_KEY || '';
+      
+      if (!apiKey) {
+        console.error('API_KEY is not defined in environment variables.');
+        callbacks.onError('API Key missing. Please set API_KEY in your environment settings.');
+        callbacks.onStatusChange('ERROR');
+        return;
+      }
+
+      // Create a fresh instance for every connection attempt
+      const ai = new GoogleGenAI({ apiKey });
       
       this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       this.outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
       
-      // Ensure audio contexts are active
+      // Mandatory: AudioContext must be resumed via user gesture (handled by the caller calling connect)
       await this.inputAudioContext.resume();
       await this.outputAudioContext.resume();
 
@@ -39,24 +49,25 @@ export class LiveService {
       Your task: 
       1. Transcribe the user's speech accurately.
       2. IMMEDIATELY translate it into ${targetLanguage}.
-      3. Output ONLY the translation clearly. 
-      Do not add extra commentary. Respond naturally but prioritize the translation.`;
+      3. Output ONLY the translation clearly and succinctly. 
+      Do not add preamble like "The translation is..." or "Sure...". Just speak the translation.`;
 
       this.sessionPromise = ai.live.connect({
         model: 'gemini-2.5-flash-native-audio-preview-12-2025',
         callbacks: {
           onopen: () => {
+            console.log('Live session connected');
             callbacks.onStatusChange('LISTENING');
             this.startStreaming();
           },
           onmessage: async (message: LiveServerMessage) => {
             // Process model's audio output
-            const base64Audio = message.serverContent?.modelTurn?.parts[0]?.inlineData?.data;
+            const base64Audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
             if (base64Audio && this.outputAudioContext) {
               this.playAudio(base64Audio);
             }
 
-            // Process transcription feedback
+            // Handle Transcriptions
             if (message.serverContent?.inputTranscription) {
               const text = message.serverContent.inputTranscription.text;
               this.currentInput += text;
@@ -68,25 +79,26 @@ export class LiveService {
               callbacks.onTranscription(this.currentOutput, 'output', false);
             }
 
-            // Handle turn completion
+            // Completion of a "turn"
             if (message.serverContent?.turnComplete) {
-              callbacks.onTranscription(this.currentInput, 'input', true);
-              callbacks.onTranscription(this.currentOutput, 'output', true);
+              if (this.currentInput) callbacks.onTranscription(this.currentInput, 'input', true);
+              if (this.currentOutput) callbacks.onTranscription(this.currentOutput, 'output', true);
               this.currentInput = '';
               this.currentOutput = '';
             }
 
-            // Handle interruptions
+            // Interruption handling
             if (message.serverContent?.interrupted) {
               this.stopAllAudio();
             }
           },
           onerror: (e) => {
-            console.error('Live API Error:', e);
-            callbacks.onError('Network or API error occurred. Please verify your connection.');
+            console.error('Live API WebSocket Error:', e);
+            callbacks.onError('Network connection failed. Please check your internet or API key permissions.');
+            this.disconnect();
           },
           onclose: (e) => {
-            console.debug('Live session closed:', e);
+            console.log('Live session closed:', e);
             callbacks.onStatusChange('IDLE');
           }
         },
@@ -103,8 +115,9 @@ export class LiveService {
 
       return this.sessionPromise;
     } catch (err) {
-      console.error('Connection setup failed:', err);
-      callbacks.onError('Could not initialize audio or reach the AI service.');
+      console.error('Connection failed during setup:', err);
+      callbacks.onError('Audio initialization failed. Please ensure microphone access is granted.');
+      callbacks.onStatusChange('IDLE');
     }
   }
 
@@ -118,12 +131,12 @@ export class LiveService {
       const inputData = e.inputBuffer.getChannelData(0);
       const pcmBlob = this.createPcmBlob(inputData);
       
-      // Ensure session is resolved before sending data
+      // Use the session promise to avoid race conditions
       this.sessionPromise?.then((session) => {
         try {
           session.sendRealtimeInput({ media: pcmBlob });
         } catch (err) {
-          console.debug('Failed to send realtime input:', err);
+          // Ignore errors if the session is closing
         }
       });
     };
@@ -136,7 +149,6 @@ export class LiveService {
     const l = data.length;
     const int16 = new Int16Array(l);
     for (let i = 0; i < l; i++) {
-      // Standard PCM conversion
       int16[i] = Math.max(-1, Math.min(1, data[i])) * 32767;
     }
     return {
@@ -164,7 +176,7 @@ export class LiveService {
       this.nextStartTime += audioBuffer.duration;
       this.sources.add(source);
     } catch (err) {
-      console.error('Audio playback error:', err);
+      console.error('Audio chunk playback failed:', err);
     }
   }
 
@@ -188,9 +200,11 @@ export class LiveService {
     }
     this.sessionPromise?.then(session => {
       try { session.close(); } catch(e) {}
-    });
-    this.inputAudioContext?.close();
-    this.outputAudioContext?.close();
+    }).catch(() => {});
+    
+    this.inputAudioContext?.close().catch(() => {});
+    this.outputAudioContext?.close().catch(() => {});
+    
     this.sessionPromise = null;
     this.inputAudioContext = null;
     this.outputAudioContext = null;
